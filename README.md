@@ -62,6 +62,4 @@ En la medición realizada para la URL publicada, SecurityHeaders reportó **A+**
 - [Azure Static Web Apps](https://learn.microsoft.com/azure/static-web-apps/)
 - [PokéAPI](https://pokeapi.co/)
 
-## Créditos
 
-El proyecto se basa en el trabajo original de [Keiler Mora](https://github.com/keilermora/pokedex-angular). Consulta el repositorio original para sus créditos y condiciones de uso.
