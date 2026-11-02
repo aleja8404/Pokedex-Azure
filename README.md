@@ -9,7 +9,6 @@ Aplicación web para explorar Pokémon, sus tipos, estadísticas y otros detalle
 - **Repositorio:** [aleja8404/Pokedex-Azure](https://github.com/aleja8404/Pokedex-Azure)
 - **Rama de despliegue:** `main`.
 
-El plan Free tiene límites de uso y sus condiciones pueden cambiar. Revisa las [condiciones y precios oficiales](https://azure.microsoft.com/pricing/details/app-service/static/) y el consumo de la suscripción. Una alerta de presupuesto informa de gastos, pero no necesariamente los detiene.
 
 ## Tecnologías
 
