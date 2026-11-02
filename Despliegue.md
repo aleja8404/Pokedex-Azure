@@ -1,414 +1,131 @@
-# 📦 Despliegue.md — PokeDex en Google Cloud
+# Despliegue de PokeDex en Azure Static Web Apps
 
-> Guía detallada paso a paso para desplegar la aplicación **PokeDex Angular** en **Google Cloud**.  
-> Incluye configuración de encabezados de seguridad para obtener calificación **A+** en [SecurityHeaders.com](https://securityheaders.com).
+Esta guía describe el despliegue actual del proyecto con GitHub Actions y Azure Static Web Apps. No requiere `gcloud`, `app.yaml` ni un servidor Node.js en Azure.
 
----
+## Arquitectura del despliegue
 
-## 📋 Tabla de Contenidos
+1. El código fuente está en el repositorio GitHub `aleja8404/Pokedex-Azure`, rama `main`.
+2. GitHub Actions obtiene el código y ejecuta la compilación Angular.
+3. Angular genera el sitio estático en `dist/pokedex-angular`.
+4. La acción de Azure publica esos archivos en Static Web Apps.
+5. El navegador carga el frontend desde Azure y la aplicación consulta PokéAPI.
 
-1. [Prerrequisitos](#1-prerrequisitos)
-2. [Preparar el Proyecto Angular](#2-preparar-el-proyecto-angular)
-3. [Configurar Encabezados de Seguridad](#3-configurar-encabezados-de-seguridad)
-4. [Crear el archivo app.yaml](#4-crear-el-archivo-appyaml)
-5. [Construir el Proyecto (Build)](#5-construir-el-proyecto-build)
-6. [Desplegar en Google Cloud App Engine](#6-desplegar-en-google-cloud-app-engine)
-7. [Verificar el Despliegue](#7-verificar-el-despliegue)
-8. [Escaneo de Seguridad](#8-escaneo-de-seguridad)
-9. [Configuración del Repositorio GitHub](#9-configuración-del-repositorio-github)
-10. [Comandos de Referencia Rápida](#10-comandos-de-referencia-rápida)
+La aplicación publicada está en [https://lemon-rock-0e9f85c0f.6.azurestaticapps.net/](https://lemon-rock-0e9f85c0f.6.azurestaticapps.net/). El recurso existente usa el plan **Free**. Este plan tiene cuotas; revisa la [información oficial de precios y límites](https://azure.microsoft.com/pricing/details/app-service/static/) antes de usarlo en un sitio de producción.
 
----
+## 1. Requisitos
 
-## 1. Prerrequisitos
+- Cuenta de Microsoft con acceso a una suscripción de Azure.
+- Cuenta de GitHub con acceso al repositorio.
+- Permiso para crear Azure Static Web Apps y conectar GitHub. Una cuenta institucional puede tener restricciones; si no tienes permisos, solicita ayuda al administrador.
+- Node.js y npm para validar el build localmente.
 
-Asegúrate de tener instalado lo siguiente antes de comenzar:
+No agregues un medio de pago ni elijas un SKU de pago sin autorización. Comprueba el plan y la suscripción en el resumen de Azure antes de crear recursos.
 
-```bash
-# Verificar Node.js (requerido v16+)
-node --version
+## 2. Probar el proyecto localmente (opcional)
 
-# Verificar npm
-npm --version
+Clona el repositorio y ejecuta:
 
-# Instalar Angular CLI versión 14 globalmente
-npm install -g @angular/cli@14
-
-# Verificar Angular CLI
-ng version
-
-# Verificar Google Cloud CLI
-gcloud --version
-```
-
-Si no tienes `gcloud` instalado:
-1. Ve a [https://cloud.google.com/sdk/docs/install](https://cloud.google.com/sdk/docs/install)
-2. Descarga el instalador para tu sistema operativo
-3. Ejecuta el instalador y luego en la terminal:
-   ```bash
-   gcloud init
-   ```
-
----
-
-## 2. Preparar el Proyecto Angular
-
-### 2.1 Clonar el repositorio
-
-```bash
-git clone https://github.com/TU_USUARIO/pokedex.git
-cd pokedex
-```
-
-### 2.2 Instalar dependencias
-
-```bash
-npm install
-```
-
-> ⚠️ Si aparece un error con `husky`, ejecuta:
-> ```bash
-> npm install --ignore-scripts
-> ```
-
-### 2.3 Verificar que la aplicación funciona localmente
-
-```bash
-npm start
-```
-
-Abre el navegador en **http://localhost:4200** y verifica que la aplicación carga correctamente con los Pokémon listados.
-
----
-
-## 3. Configurar Encabezados de Seguridad
-
-Los encabezados de seguridad HTTP son fundamentales para obtener una buena calificación en SecurityHeaders.com.
-
-### 3.1 Encabezados configurados en `src/index.html`
-
-Agrega los siguientes meta tags dentro del `<head>` del archivo `src/index.html`:
-
-```html
-<!-- Security Headers (via meta tags) -->
-<meta http-equiv="X-Content-Type-Options" content="nosniff" />
-<meta http-equiv="X-Frame-Options" content="DENY" />
-<meta http-equiv="Referrer-Policy" content="strict-origin-when-cross-origin" />
-<meta http-equiv="Permissions-Policy" content="camera=(), microphone=(), geolocation=(), payment=()" />
-<meta http-equiv="Content-Security-Policy" 
-  content="default-src 'self'; 
-           script-src 'self' 'unsafe-inline'; 
-           style-src 'self' 'unsafe-inline'; 
-           img-src 'self' data: https://raw.githubusercontent.com https://pokeapi.co; 
-           connect-src 'self' https://pokeapi.co https://beta.pokeapi.co; 
-           font-src 'self' data:; 
-           object-src 'none'; 
-           base-uri 'self'; 
-           form-action 'self';" />
-```
-
-### 3.2 Descripción de cada encabezado
-
-| Header | Propósito |
-|--------|-----------|
-| `X-Content-Type-Options: nosniff` | Evita que el navegador adivine el tipo MIME del contenido, previniendo ataques de MIME sniffing |
-| `X-Frame-Options: DENY` | Impide que la página sea embebida en un `<iframe>`, previniendo ataques de Clickjacking |
-| `Referrer-Policy` | Controla qué información de referencia se envía al navegar a otros sitios |
-| `Permissions-Policy` | Desactiva acceso a APIs del navegador como cámara, micrófono y geolocalización |
-| `Content-Security-Policy` | Política de seguridad que define qué recursos puede cargar el navegador, previniendo XSS |
-| `Strict-Transport-Security` | Fuerza conexiones HTTPS (configurado en app.yaml a nivel de servidor) |
-
----
-
-## 4. Crear el archivo app.yaml
-
-El archivo `app.yaml` configura Google Cloud App Engine para servir los archivos estáticos y define los encabezados HTTP de seguridad a nivel de servidor.
-
-Crea el archivo `app.yaml` en la raíz del proyecto:
-
-```yaml
-runtime: python39
-api_version: 1
-
-handlers:
-  - url: /
-    static_files: dist/pokedex-angular/index.html
-    upload: dist/pokedex-angular/index.html
-    http_headers:
-      Strict-Transport-Security: "max-age=31536000; includeSubDomains; preload"
-      X-Content-Type-Options: "nosniff"
-      X-Frame-Options: "DENY"
-      X-XSS-Protection: "1; mode=block"
-      Referrer-Policy: "strict-origin-when-cross-origin"
-      Permissions-Policy: "camera=(), microphone=(), geolocation=(), payment=()"
-      Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://raw.githubusercontent.com https://pokeapi.co; connect-src 'self' https://pokeapi.co https://beta.pokeapi.co; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';"
-
-  - url: /(.+)
-    static_files: dist/pokedex-angular/\1
-    upload: dist/pokedex-angular/(.+)
-    http_headers:
-      Strict-Transport-Security: "max-age=31536000; includeSubDomains; preload"
-      X-Content-Type-Options: "nosniff"
-      X-Frame-Options: "DENY"
-      X-XSS-Protection: "1; mode=block"
-      Referrer-Policy: "strict-origin-when-cross-origin"
-      Permissions-Policy: "camera=(), microphone=(), geolocation=(), payment=()"
-      Content-Security-Policy: "default-src 'self'; script-src 'self' 'unsafe-inline'; style-src 'self' 'unsafe-inline'; img-src 'self' data: https://raw.githubusercontent.com https://pokeapi.co; connect-src 'self' https://pokeapi.co https://beta.pokeapi.co; font-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self';"
-    fallback_files: dist/pokedex-angular/index.html
-```
-
-> 💡 **Nota:** El encabezado `Strict-Transport-Security` (HSTS) **solo puede configurarse a nivel de servidor HTTP**, no mediante meta tags en HTML. Por eso es crucial incluirlo en el `app.yaml`.
-
----
-
-## 5. Construir el Proyecto (Build)
-
-Para generar los archivos estáticos optimizados para producción:
-
-```bash
-# Build de producción (genera la carpeta dist/pokedex-angular)
-ng build --configuration production
-```
-
-O alternativamente:
-
-```bash
+```powershell
+git clone https://github.com/aleja8404/Pokedex-Azure.git
+cd Pokedex-Azure
+npm ci
 npm run build
 ```
 
-Al finalizar, se crea la carpeta `dist/pokedex-angular/` con todos los archivos listos para desplegar.
+La salida debe quedar en `dist/pokedex-angular`. Para ejecutar el servidor local incluido, después del build:
 
-**Verificar el contenido del build:**
-```bash
-# Windows
-dir dist\pokedex-angular
-
-# Mac/Linux
-ls dist/pokedex-angular
-```
-
-Deberías ver archivos como: `index.html`, `main.[hash].js`, `styles.[hash].css`, etc.
-
----
-
-## 6. Desplegar en Google Cloud
-
-### 6.1 Autenticar con Google Cloud
-
-```bash
-gcloud auth login
-```
-
-Esto abrirá el navegador para que inicies sesión con tu cuenta de Google.
-
-### 6.2 Configurar el proyecto
-
-```bash
-# Listar proyectos disponibles
-gcloud projects list
-
-# Establecer el proyecto activo
-gcloud config set project TU_PROJECT_ID
-```
-
-Reemplaza `TU_PROJECT_ID` con el ID de tu proyecto Google Cloud.
-
-### 6.3 Habilitar la API
-
-```bash
-gcloud app create --region=us-central
-```
-
-> ⚠️ Solo se necesita ejecutar este comando la primera vez. Selecciona la región más cercana a tus usuarios.
-
-### 6.4 Verificar la estructura de archivos
-
-Antes de desplegar, verifica que tienes:
-```
-pokedex/
-├── app.yaml
-├── dist/
-│   └── pokedex-angular/
-│       ├── index.html
-│       ├── main.[hash].js
-│       └── ...
-├── src/
-├── package.json
-└── ...
-```
-
-### 6.5 Desplegar la aplicación
-
-```bash
-gcloud run deploy --source .
-```
-
-El sistema te preguntará confirmación. Escribe `Y` y presiona Enter.
-
-**Salida esperada:**
-```
-Beginning deployment of service [default]...
-...
-Deployed service [default] to [https://TU_PROJECT_ID.appspot.com]
-```
-
-### 6.6 Abrir la aplicación en el navegador
-
-```bash
-gcloud app browse
-```
-
-Esto abrirá automáticamente la URL de tu aplicación desplegada.
-
----
-
-## 7. Verificar el Despliegue
-
-### 7.1 Ver el estado del servicio
-
-```bash
-gcloud app versions list
-```
-
-### 7.2 Ver los logs
-
-```bash
-gcloud app logs tail -s default
-```
-
-### 7.3 Verificar la URL
-
-La aplicación estará disponible en:
-```
-https://TU_PROJECT_ID.appspot.com
-```
-
-Verifica que:
-- ✅ La página carga correctamente
-- ✅ Los Pokémon aparecen en la lista
-- ✅ Puedes ver los detalles de cada Pokémon
-- ✅ La URL usa HTTPS
-
----
-
-## 8. Escaneo de Seguridad
-
-### 8.1 Escanear con SecurityHeaders.com
-
-1. Ve a [https://securityheaders.com/](https://securityheaders.com/)
-2. Ingresa la URL de tu aplicación: `https://TU_PROJECT_ID.appspot.com`
-3. Haz clic en **"Scan"**
-4. Verifica los headers configurados
-
-**Encabezados que deberías ver en verde (✅):**
-- `Strict-Transport-Security`
-- `Content-Security-Policy`
-- `X-Frame-Options`
-- `X-Content-Type-Options`
-- `Referrer-Policy`
-- `Permissions-Policy`
-
-### 8.2 Calificación esperada
-
-Con la configuración de headers implementada, se espera obtener una calificación **A** o **A+** en SecurityHeaders.com.
-
-### 8.3 Auditoría adicional con SSL Labs (Opcional)
-
-1. Ve a [https://www.ssllabs.com/ssltest/](https://www.ssllabs.com/ssltest/)
-2. Ingresa la URL de tu aplicación
-3. Espera el análisis completo (puede tardar 1-2 minutos)
-4. Verifica que el certificado SSL obtenga calificación **A** o **A+**
-
----
-
-## 9. Configuración del Repositorio GitHub
-
-### 9.1 Crear repositorio en GitHub
-
-1. Ve a [https://github.com/new](https://github.com/new)
-2. Nombre del repositorio: `pokedex`
-3. Descripción: "PokeDex Angular - Desplegado en Google Cloud"
-4. Visibilidad: **Público**
-5. Haz clic en **"Create repository"**
-
-### 9.2 Subir el código
-
-```bash
-# Inicializar git en el proyecto
-git init
-
-# Agregar todos los archivos
-git add .
-
-# Primer commit
-git commit -m "feat: inicial PokeDex Angular con configuración Google Cloud"
-
-# Vincular con el repositorio remoto
-git remote add origin https://github.com/TU_USUARIO/pokedex.git
-
-# Subir al repositorio
-git push -u origin main
-```
-
----
-
-## 10. Comandos de Referencia Rápida
-
-```bash
-# Instalar dependencias
-npm install
-
-# Ejecutar localmente
+```powershell
 npm start
-
-# Build de producción
-ng build --configuration production
-
-# Autenticar con Google Cloud
-gcloud auth login
-
-# Seleccionar proyecto
-gcloud config set project TU_PROJECT_ID
-
-# Desplegar
-gcloud app deploy
-
-# Ver la aplicación
-gcloud app browse
-
-# Ver logs en tiempo real
-gcloud app logs tail -s default
-
-# Listar versiones desplegadas
-gcloud app versions list
 ```
 
----
+Abre `http://localhost:8080`. `server.js` sirve el build y añade encabezados para este servidor local; Azure Static Web Apps no ejecuta `server.js`.
 
-## 🆘 Solución de Problemas Comunes
+## 3. Crear o conectar una Static Web App
 
-### Error: "Module not found"
-```bash
-# Limpiar y reinstalar dependencias
-rm -rf node_modules
-npm install
+Para crear un recurso nuevo desde el portal:
+
+1. Inicia sesión en [portal.azure.com](https://portal.azure.com/) y busca **Static Web Apps**.
+2. Selecciona **Crear** y elige una suscripción autorizada y un grupo de recursos.
+3. En **Detalles de hospedaje**, elige un nombre y selecciona el plan **Free**. Detente si el resumen muestra **Standard** o un precio que no esperabas.
+4. En **Implementación**, selecciona **GitHub** y autoriza la conexión si Azure la solicita.
+5. Selecciona:
+   - **Organización:** `aleja8404`
+   - **Repositorio:** `Pokedex-Azure`
+   - **Rama:** `main`
+6. En la configuración de compilación, introduce:
+   - **Preestablecido:** Angular
+   - **Ubicación de la aplicación:** `/`, porque `package.json` y `angular.json` están en la raíz.
+   - **Ubicación de la API:** vacía; el proyecto no tiene una API propia.
+   - **Ubicación de salida:** `dist/pokedex-angular`.
+7. Revisa el resumen: confirma el repositorio, la rama, las rutas y el plan **Free**. Selecciona **Crear**.
+
+Azure configura la integración de GitHub Actions y crea el secreto de despliegue requerido. No publiques ni pegues el valor de ese token en el código, capturas o chat.
+
+Si ya existe un recurso pero la conexión original no funciona, puedes crear otra Static Web App Free conectándola directamente con GitHub. No elimines el recurso anterior hasta comprobar que el nuevo despliegue sirve el sitio correctamente.
+
+## 4. Compilación y despliegue automático
+
+Azure agrega un archivo de flujo a `.github/workflows/` con un nombre parecido a `azure-static-web-apps-<identificador>.yml`. En el flujo, las rutas relevantes deben equivaler a:
+
+```yaml
+app_location: "/"
+api_location: ""
+output_location: "dist/pokedex-angular"
 ```
 
-### Error: "ng: command not found"
-```bash
-# Reinstalar Angular CLI
-npm install -g @angular/cli@14
-```
+Los cambios enviados a `main` activan el flujo de **Azure Static Web Apps CI/CD**. Para revisar:
 
-### Error: "gcloud: command not found"
-- Reinstala Google Cloud SDK desde [https://cloud.google.com/sdk/docs/install](https://cloud.google.com/sdk/docs/install)
+1. En GitHub, abre el repositorio y selecciona **Actions**.
+2. Abre la ejecución llamada **Azure Static Web Apps CI/CD**.
+3. Confirma que el trabajo de compilación y despliegue terminó en verde.
+4. En Azure, abre la Static Web App y visita la URL de **Información general**.
+5. Prueba la página, imágenes, detalles y una ruta interna recargándola.
 
-### Build falla con error de presupuesto
-```bash
-# Build con configuración de desarrollo (sin optimizaciones)
-ng build --configuration development
-```
+El repositorio también contiene un flujo separado de pruebas y cobertura. Una falla de carga a Codecov no equivale por sí sola a una falla del despliegue; revisa específicamente el resultado de **Azure Static Web Apps CI/CD**.
 
----
+## 5. Encabezados y rutas de Angular
 
-*Documento creado usando [StackEdit](https://stackedit.io/) — Editor Markdown en línea*
+La configuración HTTP está en `src/staticwebapp.config.json`. `angular.json` incluye ese archivo entre los assets, por eso aparece también en `dist/pokedex-angular` y Azure puede aplicarlo. La configuración incluye:
+
+- `navigationFallback`: devuelve `index.html` para las rutas de la SPA.
+- `globalHeaders`: agrega los encabezados de seguridad a las respuestas.
+
+### ¿Qué significa cada protección?
+
+| Configuración | Explicación sencilla |
+|---|---|
+| **CSP** (`Content-Security-Policy`) | Lista los orígenes permitidos para scripts, imágenes, conexiones, fuentes y estilos. Reduce el impacto de inyecciones de contenido y XSS. Debe permitir los recursos legítimos de Angular, Google Fonts y PokéAPI que usa la aplicación. |
+| **HSTS** (`Strict-Transport-Security`) | Indica al navegador que vuelva a usar HTTPS durante el tiempo configurado. No cifra por sí mismo la conexión; HTTPS/TLS lo hace. |
+| **Anti-clickjacking** (`X-Frame-Options: DENY` y `frame-ancestors 'none'` en CSP) | Impide que otro sitio inserte la aplicación dentro de un `iframe` para engañar al usuario y capturar clics. |
+| **Anti-MIME sniffing** (`X-Content-Type-Options: nosniff`) | Le dice al navegador que respete el tipo de contenido enviado y que no lo adivine, reduciendo interpretaciones peligrosas de archivos. |
+| **Referrer-Policy** | Limita cuánta información de la URL de origen se envía al navegar a otro sitio. |
+| **Permissions-Policy** | Desactiva funciones del navegador que esta aplicación no necesita, como cámara, micrófono o geolocalización. |
+
+El valor CSP permite solamente los orígenes de recursos utilizados por la aplicación y autoriza el script inline existente mediante un hash SHA-256, en vez de permitir cualquier script inline. Si cambian los scripts o dependencias, valida la CSP y prueba la aplicación; una política demasiado estricta puede bloquear recursos.
+
+## 6. Verificaciones de seguridad
+
+Prueba la URL pública en:
+
+1. [SecurityHeaders.com](https://securityheaders.com/): revisa la presencia de CSP, HSTS, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` y `Permissions-Policy`.
+2. [SSL Labs](https://www.ssllabs.com/ssltest/): evalúa el certificado y la configuración TLS del host. En Azure Static Web Apps, TLS y el certificado para el dominio predeterminado los administra Azure.
+
+La URL publicada obtuvo **A+** en SecurityHeaders y **A+** en SSL Labs al momento de la validación. Los resultados pueden cambiar; vuelve a ejecutar los análisis para una sustentación o entrega y guarda capturas con la fecha. Una calificación alta no sustituye una auditoría integral de seguridad.
+
+## 7. Diagnóstico de problemas comunes
+
+| Síntoma | Qué revisar |
+|---|---|
+| Página de felicitaciones de Azure | El contenido todavía no se ha publicado. Revisa que la ejecución de Azure Actions haya terminado correctamente. |
+| Error de carpeta no encontrada | Confirma que `app_location` sea `/` y que `package.json` y `angular.json` estén en la raíz del repositorio seleccionado. |
+| Azure rechaza el token | Confirma que el secreto pertenece a la Static Web App correcta. Restablece el token en Azure y actualiza el secreto correspondiente en GitHub sin revelar su valor. |
+| La compilación no encuentra salida | Confirma `output_location: "dist/pokedex-angular"` y que `npm run build` finalice correctamente. |
+| Las rutas internas fallan al recargar | Confirma que `staticwebapp.config.json` esté en la salida del build y contenga el fallback a `/index.html`. |
+| Imágenes, fuentes o consultas bloqueadas | Revisa los errores de consola del navegador y ajusta la CSP solo para los orígenes realmente requeridos. |
+
+## Referencias oficiales
+
+- [Azure Static Web Apps: inicio rápido](https://learn.microsoft.com/azure/static-web-apps/getting-started)
+- [Configuración de Azure Static Web Apps](https://learn.microsoft.com/azure/static-web-apps/configuration)
+- [Configuración de compilación](https://learn.microsoft.com/azure/static-web-apps/build-configuration)
+- [Administración de tokens de despliegue](https://learn.microsoft.com/azure/static-web-apps/deployment-token-management)
