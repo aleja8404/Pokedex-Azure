@@ -110,7 +110,7 @@ Prueba la URL pública en:
 1. [SecurityHeaders.com](https://securityheaders.com/): revisa la presencia de CSP, HSTS, `X-Frame-Options`, `X-Content-Type-Options`, `Referrer-Policy` y `Permissions-Policy`.
 2. [SSL Labs](https://www.ssllabs.com/ssltest/): evalúa el certificado y la configuración TLS del host. En Azure Static Web Apps, TLS y el certificado para el dominio predeterminado los administra Azure.
 
-La URL publicada obtuvo **A+** en SecurityHeaders y **A+** en SSL Labs al momento de la validación. Los resultados pueden cambiar; vuelve a ejecutar los análisis para una sustentación o entrega y guarda capturas con la fecha. Una calificación alta no sustituye una auditoría integral de seguridad.
+La URL publicada obtuvo **A+** en SecurityHeaders y **A+** en SSL Labs al momento de la validación. 
 
 ## 7. Diagnóstico de problemas comunes
 
