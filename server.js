@@ -17,13 +17,14 @@ app.use((req, res, next) => {
     'Content-Security-Policy',
     "default-src 'self'; " +
     "script-src 'self' 'sha256-QmIi/LDJnOEYAO9CVS/+JVvnKMiVsY6fn0FVoHnkPfg='; " +
-    "style-src 'self' 'unsafe-inline'; " +
+    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; " +
     "img-src 'self' data: https://assets.pokemon.com https://raw.githubusercontent.com https://pokeapi.co https://img.pokemondb.net; " +
     "connect-src 'self' https://pokeapi.co https://beta.pokeapi.co; " +
-    "font-src 'self' data:; " +
+    "font-src 'self' data: https://fonts.gstatic.com; " +
     "object-src 'none'; " +
     "base-uri 'self'; " +
-    "form-action 'self';"
+    "form-action 'self'; " +
+    "frame-ancestors 'none';"
   );
 
   // Previene Clickjacking
